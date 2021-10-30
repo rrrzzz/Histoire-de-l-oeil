@@ -18,11 +18,13 @@ public class CollisionTest : MonoBehaviour
         {
             _currentTr.position = _colOriginalPos;
             _currentTr.localScale = Vector3.one;
-            
-            foreach (var child in _currentTr.GetComponentsInChildren<Transform>().Skip(1))
+
+            foreach (var child in _currentTr.GetComponentsInChildren<Transform>(true).Skip(1))
             {
                 child.gameObject.SetActive(true);
             }
+            transform.localScale = Vector3.one;
+            _currentTr.GetChild(0).GetComponent<MeshCollider>().enabled = true;
         }
     }
 
@@ -31,25 +33,23 @@ public class CollisionTest : MonoBehaviour
         var tr = other.transform;
         var name = tr.name.ToLower();
 
-        if (name.Contains("eye") || name.Contains("floor") || name.Contains("wall")) return;
-        _currentTr = tr.parent;
-        _colOriginalPos = tr.parent.position;
+        if (name.Contains("eye") || name.Contains("floor") || name.Contains("wall") || !tr.gameObject.activeSelf) return;
         
+        var meshGlobalVolume = tr.GetComponent<MeshRenderer>().bounds.size;
+        var volume = meshGlobalVolume.x * meshGlobalVolume.y * meshGlobalVolume.z;
+       
         StartCoroutine(ScaleDown(tr));
-        StartCoroutine(ScaleUp(tr));
+        StartCoroutine(ScaleUp(Mathf.Pow(volume, 1f / 3f)));
     }
 
-    private IEnumerator ScaleUp(Transform colTr)
+    private IEnumerator ScaleUp(float volume)
     {
         var scaleVelocity = Vector3.zero;
-
-        var meshGlobalVolume = colTr.GetComponent<MeshRenderer>().bounds.size;
-        var volume = meshGlobalVolume.x * meshGlobalVolume.y * meshGlobalVolume.z;
-        
+        Debug.Log(volume);
         var targetScale = transform.localScale.x + volume / volumeDivisor;
-        var finalScale = GetFinalScale(transform.localScale.x + volume / volumeDivisor);
+        var finalScale = GetFinalScale(targetScale);
         
-        while (transform.localScale.x - targetScale > scaleDelta)
+        while (targetScale - transform.localScale.x > scaleDelta)
         {
             transform.localScale =
                 Vector3.SmoothDamp(transform.localScale, finalScale, ref scaleVelocity, growingTime, 1000, Time.deltaTime);
@@ -61,10 +61,12 @@ public class CollisionTest : MonoBehaviour
     {
         var moveVelocity = Vector3.zero;
         var scaleVelocity = Vector3.zero;
-
         var finalScale = 0.01f;
         var targetScale = GetFinalScale(finalScale);
         var suckingTime = 0.1f;
+        
+        _currentTr = tr.parent;
+        _colOriginalPos = tr.parent.position;
 
         var children = _currentTr.GetComponentsInChildren<Transform>().Skip(1);
         tr.GetComponent<MeshCollider>().enabled = false;

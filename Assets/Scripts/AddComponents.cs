@@ -6,15 +6,28 @@ public class AddComponents : MonoBehaviour
 {
 
     [SerializeField] private float mass = 1;
+    [SerializeField] private bool addCollider;
+    [SerializeField] private bool addRigidBody;
     
-
     [Button]
-    private void AddCollider()
+    private void AddSelectedComponents()
     {
         Transform previousParent = null;
         foreach (var mf in transform.GetComponentsInChildren<MeshFilter>(true))
         {
-            if (mf.transform.parent == previousParent)
+            var rb = mf.GetComponent<Rigidbody>();
+            
+            if (mf.GetComponent<MeshCollider>() != null)
+            {
+                if (rb != null)
+                    rb.mass = mass;
+                
+                previousParent = mf.transform.parent;
+                continue;
+            }
+
+            var isSingleObject = char.IsUpper(mf.name[0]) || mf.name.ToLower().Contains("alt");
+            if (mf.transform.parent == previousParent && !isSingleObject)
             {
                 continue;
             }
@@ -22,27 +35,6 @@ public class AddComponents : MonoBehaviour
             previousParent = mf.transform.parent;
             var col = mf.gameObject.AddComponent<MeshCollider>();
             col.convex = true;
-        }
-    }
-
-    [Button]
-    private void AddRigidBody()
-    {
-        Transform previousParent = null;
-        foreach (var mf in transform.GetComponentsInChildren<MeshFilter>(true))
-        {
-            if (mf.transform.parent == previousParent)
-            {
-                continue;
-            }
-
-            previousParent = mf.transform.parent;
-            var rb = mf.GetComponent<Rigidbody>();
-            if (rb != null)
-            {
-                rb.mass = mass;
-                return;
-            }
             
             rb = mf.gameObject.AddComponent<Rigidbody>();
             rb.useGravity = true;
