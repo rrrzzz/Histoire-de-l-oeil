@@ -50,7 +50,7 @@ public class CamMover : MonoBehaviour
         
         var dotToGround = Vector3.Dot(-Vector3.up, transform.forward);
         
-        if (dotToGround >= .9f && inY < 0 || dotToGround < 0f && inY > 0)
+        if (dotToGround >= .9f && inY < 0 || dotToGround < 0.1f && inY > 0)
         {
             _offset = Quaternion.AngleAxis (inX * rotationSensitivity, Vector3.up) * _offset;
         }
@@ -66,8 +66,9 @@ public class CamMover : MonoBehaviour
     IEnumerator IncreaseOffset()
     {
         var vel = 0f;
+        var scaleDif = _colTest.targScale - target.localScale.x;
         var startingWidth = OrigHw * target.localScale.x;
-        var endingWidth = OrigHw * _colTest.tScale;
+        var endingWidth = OrigHw * _colTest.targScale;
         var distToSurface = _offset.magnitude - startingWidth;
         var distToSurfaceFinal = _offset.magnitude - endingWidth;
         var mag = _offset.magnitude;
@@ -77,7 +78,7 @@ public class CamMover : MonoBehaviour
         while (dif - currentDif > 0.1)
         {
             currentDif = Mathf.SmoothDamp(currentDif, dif, ref vel, 0.5f, 1000, Time.deltaTime);
-            _offset = _offset.normalized * (mag + currentDif * target.localScale.x);
+            _offset = _offset.normalized * (mag + currentDif * (scaleDif * 2));
             yield return new WaitForEndOfFrame();
         }
 

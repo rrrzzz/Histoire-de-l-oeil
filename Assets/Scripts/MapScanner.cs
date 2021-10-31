@@ -24,20 +24,26 @@ public class MapScanner
         return false;
     }
 
-    public bool CheckPositionObstructed(Vector3 mapPosition, Vector3 objectSize)
+    public bool CheckPositionObstructed(Vector3 mapPosition, Vector3 objectSize, Vector3 spacing, bool useSpacing = true)
     {
+        objectSize = useSpacing ? objectSize + spacing : objectSize;
         var hitCount = Physics.OverlapBoxNonAlloc(mapPosition, objectSize / 2, _colliderHits);
    
         for (int i = 0; i < hitCount; i++)
         {
             var go = _colliderHits[i].gameObject;
-            if (go.activeSelf && !go.CompareTag(Constants.FloorTag))
+            if (go.activeInHierarchy && !go.CompareTag(Constants.FloorTag))
             {
-                Debug.Log($"Obstructing go is {go.name}");
-                return true;
+                var isWall = go.name.ToLower().Contains("wall");
+                if (isWall || !useSpacing)
+                { 
+                    return true;
+                }
             }
-                
         }
-        return false;
+
+        if (!useSpacing) return false;
+        
+        return CheckPositionObstructed(mapPosition, objectSize, spacing, false);
     }
 }

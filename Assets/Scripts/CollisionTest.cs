@@ -1,6 +1,4 @@
-using System;
 using System.Collections;
-using System.Linq;
 using UnityEngine;
 
 public class CollisionTest : MonoBehaviour
@@ -8,29 +6,16 @@ public class CollisionTest : MonoBehaviour
     [SerializeField] private float volumeDivisor = 10f;
     [SerializeField] private float scaleDelta = 0.005f;
     [SerializeField] private float growingTime = 0.5f;
+    [SerializeField] private float suckingTime = 0.1f;
     [SerializeField] private Transform[] createdObjects;
-    
-
-    private Transform _currentTr;
-    private Vector3 _colOriginalPos;
+   
+    [HideInInspector]
     public bool isGrowing;
-    public float tScale; 
+    [HideInInspector]
+    public float targScale; 
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            _currentTr.position = _colOriginalPos;
-            _currentTr.localScale = Vector3.one;
-
-            foreach (var child in _currentTr.GetComponentsInChildren<Transform>(true).Skip(1))
-            {
-                child.gameObject.SetActive(true);
-            }
-            transform.localScale = Vector3.one;
-            _currentTr.GetChild(0).GetComponent<MeshCollider>().enabled = true;
-        }
-
         if (Input.GetKeyDown(KeyCode.I))
         {
             var volume = 0f;
@@ -48,26 +33,27 @@ public class CollisionTest : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter(Collision other)
+    // private void OnCollisionEnter(Collision other) => ProcessCollision(other.transform);
+    private void OnTriggerEnter(Collider other) => ProcessCollision(other.transform);
+    
+    private void ProcessCollision(Transform tr)
     {
-        var tr = other.transform;
-        var name = tr.name.ToLower();
-        
-        if (name.Contains("eye") || name.Contains("floor") || name.Contains("wall") || name.Contains("camera") || !tr.gameObject.activeInHierarchy)
+        if (tr.CompareTag(Constants.UnsuckTag) || tr.CompareTag(Constants.FloorTag) || !tr.gameObject.activeInHierarchy)
             return;
         
-        var meshGlobalVolume = tr.GetComponent<MeshRenderer>().bounds.size;
+        var mr = tr.GetComponentInChildren<MeshRenderer>();
+        var meshGlobalVolume = mr.bounds.size;
         var volume = meshGlobalVolume.x * meshGlobalVolume.y * meshGlobalVolume.z;
-       
-        StartCoroutine(ScaleDown(tr));
+        Debug.Log(tr.name);
+        StartCoroutine(ScaleDown(mr.transform));
         StartCoroutine(ScaleUp(Mathf.Pow(volume, 1f / 3f)));
     }
-
+    
     private IEnumerator ScaleUp(float volume)
     {
         var scaleVelocity = Vector3.zero;
         var targetScale = transform.localScale.x + volume / volumeDivisor;
-        tScale = targetScale;
+        targScale = targetScale;
         var finalScale = GetFinalScale(targetScale);
         isGrowing = true;
         while (targetScale - transform.localScale.x > scaleDelta)
@@ -82,31 +68,30 @@ public class CollisionTest : MonoBehaviour
     {
         var moveVelocity = Vector3.zero;
         var scaleVelocity = Vector3.zero;
-        var finalScale = 0.01f;
-        var targetScale = GetFinalScale(finalScale);
-        var suckingTime = 0.1f;
         
         var isSingleObject = char.IsUpper(tr.name[0]) || tr.name.ToLower().Contains("alt");
+        var curTr = isSingleObject ? tr : tr.parent;
         
-        _currentTr = isSingleObject ? tr : tr.parent;
-        _colOriginalPos = _currentTr.position;
-
-        var children = _currentTr.GetComponentsInChildren<Transform>().Skip(1);
-        tr.GetComponent<MeshCollider>().enabled = false;
+        var finalScale = curTr.localScale.x / 10;
+        var targetScale = GetFinalScale(finalScale);
         
-        while (_currentTr.localScale.x - finalScale > scaleDelta)
+        var meshCols = curTr.GetComponentsInChildren<MeshCollider>();
+        
+        foreach (var mc in meshCols)
         {
-            _currentTr.position =
-                Vector3.SmoothDamp(_currentTr.position, transform.position, ref moveVelocity, suckingTime, 1000, Time.deltaTime);
-            _currentTr.localScale =
-                Vector3.SmoothDamp(_currentTr.localScale, targetScale, ref scaleVelocity, suckingTime, 1000, Time.deltaTime);
+            mc.enabled = false;
+        }
+
+        while (curTr.localScale.x - finalScale > scaleDelta)
+        {
+            curTr.position =
+                Vector3.SmoothDamp(curTr.position, transform.position, ref moveVelocity, suckingTime, 1000, Time.deltaTime);
+            curTr.localScale =
+                Vector3.SmoothDamp(curTr.localScale, targetScale, ref scaleVelocity, suckingTime, 1000, Time.deltaTime);
             yield return new WaitForEndOfFrame();
         }
         
-        foreach (var child in children)
-        {
-            child.gameObject.SetActive(false);
-        }
+        Destroy(curTr.gameObject);
     }
 
     private Vector3 GetFinalScale(float s) => new Vector3(s, s, s);
