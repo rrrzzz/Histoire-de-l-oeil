@@ -105,6 +105,16 @@ public class AddComponents : MonoBehaviour
             rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         } 
     }
+    
+    [Button]
+    private void ChangeRbMass()
+    {
+        foreach (var rb in transform.GetComponentsInChildren<Rigidbody>(true))
+        {
+            rb.mass = 1;
+            rb.angularDrag = 0.1f;
+        } 
+    }
 
     [Button]
     private void EnableColliders()

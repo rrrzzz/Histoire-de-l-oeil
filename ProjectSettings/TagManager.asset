@@ -7,6 +7,7 @@ TagManager:
   - Floor
   - Unsuck
   - Processed
+  - Roof
   layers:
   - Default
   - TransparentFX

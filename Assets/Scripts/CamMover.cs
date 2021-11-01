@@ -8,6 +8,9 @@ public class CamMover : MonoBehaviour
     [SerializeField] private float zoomSensitivity;
     [SerializeField] private float zoomMin = 3;
     [SerializeField] private float coolDown = 1;
+    [SerializeField] private float scaleOffset = 2;
+    [SerializeField] private float scaleSmallMul = 10;
+    
     
     private const float OrigHw = 1.1f;
     
@@ -15,12 +18,15 @@ public class CamMover : MonoBehaviour
     private CollisionTest _colTest;
     private bool _isCoroutineExecuting;
     private float _currentMag;
+    private float _lastTargetReached;
     private bool _isStopped;
+    private bool _changeScale = true;
     
     private void Start()
     {
         _offset = transform.position - target.position;
         _colTest = target.GetComponent<CollisionTest>();
+        _lastTargetReached = target.localScale.x;
     } 
         
     private void LateUpdate()
@@ -45,11 +51,30 @@ public class CamMover : MonoBehaviour
                 _currentMag = newMag;
             }
         }
-        
-        if (_colTest.isGrowing && !_isCoroutineExecuting)
+
+        if (_changeScale)
         {
-            _isCoroutineExecuting = true;
-            StartCoroutine(IncreaseOffset());
+            if (_colTest.growGradually)
+            {
+                if ((_colTest.isGrowing || (target.localScale.x - _lastTargetReached > 0.01f)) && !_isCoroutineExecuting)
+                {
+                    _isCoroutineExecuting = true;
+                    StartCoroutine(IncreaseOffset());
+                }
+            }
+            else
+            {
+                // var startingWidth = OrigHw * _colTest.lastScale;
+                // var endingWidth = OrigHw * _colTest.targScale;
+                // var distToSurface = _offset.magnitude - startingWidth;
+                // var distToSurfaceFinal = _offset.magnitude - endingWidth;
+                // _currentMag = _offset.magnitude;
+                // var dif = distToSurface - distToSurfaceFinal;
+                // _offset = _offset.normalized * (_currentMag + dif * 3f);
+                // _changeScale = false;
+                
+                StartCoroutine(IncreaseOffsetLast());
+            }
         }
 
         var inX = Input.GetAxis("Mouse X");
@@ -71,6 +96,35 @@ public class CamMover : MonoBehaviour
         transform.position = target.position + _offset;
         transform.LookAt(target.position);
     }
+    
+    IEnumerator IncreaseOffsetLast()
+    {
+        _changeScale = false;
+        var vel = 0f;
+        var startingWidth = OrigHw * _colTest.lastScale;
+        var endingWidth = OrigHw * _colTest.targScale;
+        var distToSurface = _offset.magnitude - startingWidth;
+        var distToSurfaceFinal = _offset.magnitude - endingWidth;
+        _currentMag = _offset.magnitude;
+        var dif = distToSurface - distToSurfaceFinal;
+        dif *= 3;
+        var currentDif = 0f;
+
+        while (dif - currentDif > 0.1)
+        {
+            if (_isStopped)
+            {
+                _isCoroutineExecuting = false;
+                yield break;
+            }                
+            
+            currentDif = Mathf.SmoothDamp(currentDif, dif, ref vel, 0.5f, 1000, Time.deltaTime);
+            _offset = _offset.normalized * (_currentMag + currentDif);
+            yield return new WaitForEndOfFrame();
+        }
+        
+        _isCoroutineExecuting = false;
+    }
 
     IEnumerator StopGrowing()
     {
@@ -82,10 +136,14 @@ public class CamMover : MonoBehaviour
     IEnumerator IncreaseOffset()
     {
         var vel = 0f;
-        var scaleDif = _colTest.targScale - target.localScale.x;
-
-        var mul = scaleDif < 1 ? 10 / scaleDif : 2f;
-     
+        var scaleDif = _colTest.targScale - _lastTargetReached;
+        if (scaleDif < 0.001f)
+        {
+            _isCoroutineExecuting = false;
+            yield break;
+        }
+        var startingScale = _colTest.targScale;
+        var mul = scaleDif < 1 ? scaleSmallMul / scaleDif : scaleOffset;
         var startingWidth = OrigHw * target.localScale.x;
         var endingWidth = OrigHw * _colTest.targScale;
         var distToSurface = _offset.magnitude - startingWidth;
@@ -94,16 +152,20 @@ public class CamMover : MonoBehaviour
         var dif = distToSurface - distToSurfaceFinal;
         var currentDif = 0f;
 
-        while (dif - currentDif > 0.1)
+        while (dif > 0.001f && dif - currentDif > 0.1)
         {
-            if (_isStopped)            
-                break;
+            if (_isStopped)
+            {
+                _isCoroutineExecuting = false;
+                yield break;
+            }                
             
             currentDif = Mathf.SmoothDamp(currentDif, dif, ref vel, 0.5f, 1000, Time.deltaTime);
             _offset = _offset.normalized * (_currentMag + currentDif * (scaleDif * mul));
             yield return new WaitForEndOfFrame();
         }
-
+        
+        _lastTargetReached = startingScale;
         _isCoroutineExecuting = false;
     }
 }
