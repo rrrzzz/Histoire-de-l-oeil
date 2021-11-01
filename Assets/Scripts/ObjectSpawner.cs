@@ -97,6 +97,10 @@ public class ObjectSpawner : MonoBehaviour
     {
         foreach (var b in _duplicateObjects)
         {
+            if (!b)
+            {
+                continue;
+            }
             if (b.position.y < -10)
             {
                 Destroy(b.gameObject);
@@ -284,9 +288,7 @@ public class ObjectSpawner : MonoBehaviour
         
         if (childCount == 1)
             return tr.parent;
-        if (childCount == 0)
-            return tr;
-
+     
         var secondChild = tr.parent.GetChild(1);
         if (secondChild.GetComponent<MeshFilter>() != null && secondChild.GetComponent<MeshCollider>() == null)
         {
