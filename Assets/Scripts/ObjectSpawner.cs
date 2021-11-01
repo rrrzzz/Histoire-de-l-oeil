@@ -14,7 +14,7 @@ public class ObjectSpawner : MonoBehaviour
     [SerializeField] private Transform dupesRoot;
     
     [Header("Debug")]
-    // [SerializeField] private Transform debugObject;
+    [SerializeField] private bool debugSpawn;
 
     [Header("Spawn parameters")]
     [SerializeField] private float buildingsSpacing = 1;
@@ -32,9 +32,6 @@ public class ObjectSpawner : MonoBehaviour
     [SerializeField] private Transform wall3X;
     [SerializeField] private Transform wall4X;
     [SerializeField] private Transform floor;
-
-
-    
 
     private readonly List<Transform> _duplicateObjects = new List<Transform>();
     private readonly List<Transform> _duplicateBuildings = new List<Transform>();
@@ -79,7 +76,10 @@ public class ObjectSpawner : MonoBehaviour
                 SpawnMisc(spawnHeight);
             }
 
-            // StartCoroutine(SetCollidersToTriggerAfterSpawned());
+            if (!debugSpawn)
+            {
+                StartCoroutine(SetCollidersToTriggerAfterSpawned());
+            }
         }
 
         if (Input.GetKeyDown(KeyCode.T))
@@ -97,9 +97,18 @@ public class ObjectSpawner : MonoBehaviour
     {
         foreach (var b in _duplicateObjects)
         {
+            if (b.position.y < -10)
+            {
+                Destroy(b.gameObject);
+            }
             var rbs = b.GetComponentsInChildren<Rigidbody>();
             foreach (var rb in rbs)
             {
+                if (rb.position.y < -10)
+                {
+                    Destroy(b.gameObject);
+                    continue;
+                }
                 Destroy(rb);
             }
             
@@ -124,11 +133,28 @@ public class ObjectSpawner : MonoBehaviour
     private IEnumerator SetCollidersToTriggerAfterSpawned()
     {
         yield return new WaitForSeconds(tToEnd);
+        
+        foreach (var b in _duplicateBuildings)
+        {
+            var colliders = b.GetComponentsInChildren<MeshCollider>();
+            foreach (var col in colliders)
+            {
+                col.isTrigger = true;
+            }
+        }
+        
+        yield return new WaitForSeconds(2);
+        
         foreach (var b in _duplicateObjects)
         {
             var rbs = b.GetComponentsInChildren<Rigidbody>();
             foreach (var rb in rbs)
             {
+                if (rb.position.y < -10)
+                {
+                    Destroy(b.gameObject);
+                    continue;
+                }
                 Destroy(rb);
             }
             
@@ -136,17 +162,6 @@ public class ObjectSpawner : MonoBehaviour
             foreach (var col in colliders)
             {
                 col.enabled = true;
-                col.isTrigger = true;
-            }
-        }
-        
-        yield return new WaitForSeconds(2);
-        
-        foreach (var b in _duplicateBuildings)
-        {
-            var colliders = b.GetComponentsInChildren<MeshCollider>();
-            foreach (var col in colliders)
-            {
                 col.isTrigger = true;
             }
         }
@@ -231,9 +246,16 @@ public class ObjectSpawner : MonoBehaviour
 
     private void DestroySpawned()
     {
-        _duplicateObjects.ForEach(x => Destroy(x.gameObject));
-        _duplicateBuildings.ForEach(x => Destroy(x.gameObject));
-
+        foreach (var x in _duplicateObjects.Where(x => x))
+        {
+            Destroy(x.gameObject);
+        }
+        
+        foreach (var x in _duplicateBuildings.Where(x => x))
+        {
+            Destroy(x.gameObject);
+        }
+       
         _duplicateObjects.Clear();
         _duplicateBuildings.Clear();
     } 

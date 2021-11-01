@@ -7,12 +7,15 @@ public class CamMover : MonoBehaviour
     [SerializeField] private float rotationSensitivity;
     [SerializeField] private float zoomSensitivity;
     [SerializeField] private float zoomMin = 3;
-
+    [SerializeField] private float coolDown = 1;
+    
     private const float OrigHw = 1.1f;
     
     private Vector3 _offset;
     private CollisionTest _colTest;
     private bool _isCoroutineExecuting;
+    private float _currentMag;
+    private bool _isStopped;
     
     private void Start()
     {
@@ -25,15 +28,21 @@ public class CamMover : MonoBehaviour
         var width = OrigHw * target.localScale.x;
         
         var scroll = -Input.GetAxis("Mouse ScrollWheel") * zoomSensitivity * target.localScale.x;
-        if (scroll != 0 && !_colTest.isGrowing)
+        if (scroll != 0)
         {
             var newOff = transform.position - target.position;
             var newMag = _offset.magnitude + scroll;
+            if (scroll < 0)
+            {
+                StopCoroutine(StopGrowing());
+                StartCoroutine(StopGrowing());
+            }
             
             var realMag = newMag - width;
             if (realMag > zoomMin)
             {
                 _offset = newOff.normalized * newMag;
+                _currentMag = newMag;
             }
         }
         
@@ -63,22 +72,35 @@ public class CamMover : MonoBehaviour
         transform.LookAt(target.position);
     }
 
+    IEnumerator StopGrowing()
+    {
+        _isStopped = true;
+        yield return new WaitForSeconds(coolDown);
+        _isStopped = false;
+    }
+    
     IEnumerator IncreaseOffset()
     {
         var vel = 0f;
         var scaleDif = _colTest.targScale - target.localScale.x;
+
+        var mul = scaleDif < 1 ? 10 / scaleDif : 2f;
+     
         var startingWidth = OrigHw * target.localScale.x;
         var endingWidth = OrigHw * _colTest.targScale;
         var distToSurface = _offset.magnitude - startingWidth;
         var distToSurfaceFinal = _offset.magnitude - endingWidth;
-        var mag = _offset.magnitude;
+        _currentMag = _offset.magnitude;
         var dif = distToSurface - distToSurfaceFinal;
         var currentDif = 0f;
 
         while (dif - currentDif > 0.1)
         {
+            if (_isStopped)            
+                break;
+            
             currentDif = Mathf.SmoothDamp(currentDif, dif, ref vel, 0.5f, 1000, Time.deltaTime);
-            _offset = _offset.normalized * (mag + currentDif * (scaleDif * 2));
+            _offset = _offset.normalized * (_currentMag + currentDif * (scaleDif * mul));
             yield return new WaitForEndOfFrame();
         }
 

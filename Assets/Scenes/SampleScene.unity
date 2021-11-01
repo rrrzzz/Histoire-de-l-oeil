@@ -841,7 +841,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1441802474}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 7.256008, y: 0.8304653, z: -3.0786629}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
@@ -867,9 +867,9 @@ MonoBehaviour:
   spawnAttempts: 10
   buildingsCount: 200
   objectsCount: 3000
-  spawnHeight: 10
+  spawnHeight: 2
   closerAmount: -10
-  tToEnd: 0
+  tToEnd: 6
   tLWorldCorner: {fileID: 1568047991}
   bRWorldCorner: {fileID: 89943992}
   wall3X: {fileID: 68635907}
@@ -1546,6 +1546,10 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1241086518254822612, guid: 72c3ebb824da2c346be6591a4d1213b8, type: 3}
+      propertyPath: suckingTime
+      value: 0.1
+      objectReference: {fileID: 0}
     - target: {fileID: 1241086518254822613, guid: 72c3ebb824da2c346be6591a4d1213b8, type: 3}
       propertyPath: m_TagString
       value: Unsuck
@@ -1602,7 +1606,8 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 1241086518254822611, guid: 72c3ebb824da2c346be6591a4d1213b8, type: 3}
   m_SourcePrefab: {fileID: 100100000, guid: 72c3ebb824da2c346be6591a4d1213b8, type: 3}
 --- !u!4 &1633798843156398189 stripped
 Transform:

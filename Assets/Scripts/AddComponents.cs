@@ -1,11 +1,9 @@
-using System;
 using EasyButtons;
 using UnityEngine;
 
 [ExecuteAlways]
 public class AddComponents : MonoBehaviour
 {
-
     [SerializeField] private float mass = 1;
     [SerializeField] private bool addCollider;
     [SerializeField] private bool addRigidBody;
