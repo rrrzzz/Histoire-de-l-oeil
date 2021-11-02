@@ -34,6 +34,7 @@ public class ObjectSpawner : MonoBehaviour
     [SerializeField] private Transform buildingsRoot;
     [SerializeField] private Transform animalsRoot;
     [SerializeField] private Transform dupesRoot;
+    [SerializeField] private Transform playerOriginal;
     
     [Header("Debug")]
     [SerializeField] private bool debugSpawn;
@@ -54,6 +55,9 @@ public class ObjectSpawner : MonoBehaviour
     private Transform _bRWorldCorner;
     
     private Transform _floor;
+    private Transform _eye;
+    private Transform _cam;
+    private Transform _player;
     private Vector2 _tlCorner;
     private Vector2 _brCorner;
     private MapScanner _mapScanner;
@@ -73,6 +77,10 @@ public class ObjectSpawner : MonoBehaviour
 
     private void CreateWorld()
     {
+        _player = Instantiate(playerOriginal);
+        _eye = _player.GetChild(1);
+        _cam = _player.GetChild(0);
+        
         _floor = Instantiate(floorOrig);
         _floor.gameObject.SetActive(true);
 
@@ -98,7 +106,7 @@ public class ObjectSpawner : MonoBehaviour
             
             for (int i = 0; i < buildingsCount; i++)
             {
-                SpawnBuilding();
+                SpawnBuilding(Vector3.zero);
             }
         
             foreach (var b in _duplicateBuildings)
@@ -112,6 +120,58 @@ public class ObjectSpawner : MonoBehaviour
         seq.Play();
     }
     
+    public IEnumerator Explode()
+    {
+        var worldBounds = _floor.GetChild(0);
+        worldBounds.parent = null;
+        var lid = worldBounds.GetChild(4).GetChild(0);
+
+        var dif = lid.position - _floor.position;
+
+        var expPos = _floor.position + dif.normalized * (dif.magnitude / 2);
+        
+        _floor.GetComponent<MeshCollider>().enabled = false;
+        var crb = _floor.gameObject.AddComponent<Rigidbody>();
+        crb.AddExplosionForce(200000, expPos, 10000);
+        
+        for (int i = 0; i < 5; i++)
+        {
+            var mfs = worldBounds.GetChild(i).GetComponentsInChildren<MeshFilter>();
+            foreach (var mf in mfs)
+            {
+                var mc = mf.GetComponent<MeshCollider>();
+                if (mc)
+                    mc.enabled = false;
+                
+                crb = mf.gameObject.AddComponent<Rigidbody>();
+                crb.AddExplosionForce(200000, expPos, 10000);
+            }
+        }
+        
+        StartCoroutine(EndingSequence());
+        yield return new WaitForSeconds(4);
+        Destroy(worldBounds.gameObject);
+        Destroy(_floor.gameObject);
+    }
+
+    private void SpawnEye()
+    {
+        
+    }
+
+    private void EnableControls()
+    {
+        _eye.GetComponent<Rigidbody>().isKinematic = false;
+        _eye.GetComponent<Mover>().enabled = true;
+    }
+    
+    private IEnumerator EndingSequence()
+    {
+        _eye.GetComponent<Rigidbody>().isKinematic = true;
+        _eye.GetComponent<Mover>().enabled = false;
+        yield return null;
+    }
+
     private IEnumerator SpawnObjectsSeries(Transform worldBounds)
     {
         yield return new WaitForSeconds(buildingGrowthTime);
@@ -134,9 +194,9 @@ public class ObjectSpawner : MonoBehaviour
         finalSeq.Append(GrowHeight(lid, TargetYLidScale));
         finalSeq.Append(lid.DORotate(new Vector3(TargetLidXRot, 0, 0), lidClosingTime));
         
-        finalSeq.Play();
+        finalSeq.Play().OnComplete(SpawnEye);
     }
-    
+
     private void SetWorldCorners()
     {
         _tlCorner = new Vector2(_tLWorldCorner.position.x, _tLWorldCorner.position.z);
@@ -145,17 +205,33 @@ public class ObjectSpawner : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-            CreateWorld();
-        
-        //
         // if (Input.GetKeyDown(KeyCode.Space))
-        // {
-        //     for (int i = 0; i < buildingsCount; i++)
-        //     {
-        //         SpawnBuilding();
-        //     }
-        // }
+        //     CreateWorld();
+        
+        
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            
+            floorOrig.gameObject.SetActive(true);
+
+            var worldBounds = floorOrig.GetChild(0);
+
+            _tLWorldCorner = worldBounds.GetChild(0);
+            _bRWorldCorner = worldBounds.GetChild(2);
+            
+            SetWorldCorners();
+            for (int i = 0; i < buildingsCount; i++)
+            {
+                SpawnBuilding(new Vector3(.01f, .01f, .01f));
+            }
+            
+            for (int i = 0; i < objectsCount; i++)
+            {
+                SpawnMisc(5);
+            }
+
+            TriggerImmediately();
+        }
         //
         // if (Input.GetKeyDown(KeyCode.J))
         // {
@@ -324,7 +400,7 @@ public class ObjectSpawner : MonoBehaviour
     private Vector3 GetRandomCloser() =>
         new Vector3(Random.Range(_tlCorner.x - closerAmount, _brCorner.x + closerAmount), 0, Random.Range(_tlCorner.y + closerAmount, _brCorner.y - closerAmount));
     
-    private void SpawnBuilding()
+    private void SpawnBuilding(Vector3 scale)
     {
         var spawnCounter = spawnAttempts;
         while (spawnCounter-- >= 0)
@@ -345,7 +421,7 @@ public class ObjectSpawner : MonoBehaviour
                 
                 pos.y = building.position.y;
                 building.position = pos;
-                building.localScale = Vector3.zero;
+                building.localScale = scale;
                 building.gameObject.SetActive(true);
                 return;
             }

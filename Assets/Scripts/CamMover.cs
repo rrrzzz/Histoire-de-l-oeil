@@ -27,6 +27,25 @@ public class CamMover : MonoBehaviour
         _offset = transform.position - target.position;
         _colTest = target.GetComponent<CollisionTest>();
         _lastTargetReached = target.localScale.x;
+        
+        var inX = Input.GetAxis("Mouse X");
+        var inY = Input.GetAxis("Mouse Y");
+
+        var newOffset = Quaternion.AngleAxis(inX * rotationSensitivity, Vector3.up) * Quaternion.AngleAxis(-inY * rotationSensitivity, transform.right) * _offset;
+        
+        var dotToGround = Vector3.Dot(-Vector3.up, transform.forward);
+        
+        if (dotToGround >= .9f && inY < 0 || dotToGround < 0.1f && inY > 0)
+        {
+            _offset = Quaternion.AngleAxis (inX * rotationSensitivity, Vector3.up) * _offset;
+        }
+        else
+        {
+            _offset = newOffset;
+        }
+
+        transform.position = target.position + _offset;
+        transform.LookAt(target.position);
     } 
         
     private void LateUpdate()
@@ -64,15 +83,6 @@ public class CamMover : MonoBehaviour
             }
             else
             {
-                // var startingWidth = OrigHw * _colTest.lastScale;
-                // var endingWidth = OrigHw * _colTest.targScale;
-                // var distToSurface = _offset.magnitude - startingWidth;
-                // var distToSurfaceFinal = _offset.magnitude - endingWidth;
-                // _currentMag = _offset.magnitude;
-                // var dif = distToSurface - distToSurfaceFinal;
-                // _offset = _offset.normalized * (_currentMag + dif * 3f);
-                // _changeScale = false;
-                
                 StartCoroutine(IncreaseOffsetLast());
             }
         }

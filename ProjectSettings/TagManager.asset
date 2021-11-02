@@ -8,6 +8,7 @@ TagManager:
   - Unsuck
   - Processed
   - Roof
+  - Blocker
   layers:
   - Default
   - TransparentFX

@@ -15,7 +15,7 @@ public class ColSeparate : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         var tr = other.transform;
-        if (tr.CompareTag(Constants.UnsuckTag) || tr.CompareTag(Constants.FloorTag) || tr.CompareTag(Constants.ProcessedTag) || !tr.gameObject.activeInHierarchy)
+        if (tr.CompareTag(Constants.UnsuckTag) || tr.CompareTag(Constants.FloorTag) || tr.CompareTag(Constants.ProcessedTag) || !tr.gameObject.activeInHierarchy || tr.CompareTag("Blocker"))
             return;
 
         tr.tag = Constants.ProcessedTag;

@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using DG.Tweening;
 using DG.Tweening.Core;
 using DG.Tweening.Plugins.Options;
@@ -11,7 +13,6 @@ public class WorldSpawner : MonoBehaviour
     private const float TargetFloorXScale = 45.762f;
     private const float TargetFloorZScale = 48.873f;
 
-    [SerializeField] private Transform floorParent;
     [SerializeField] private float commonTime;
     [SerializeField] private bool useCommonTime = true;
     
@@ -20,6 +21,10 @@ public class WorldSpawner : MonoBehaviour
     [SerializeField] private float wallTallingTime = 1f;
     [SerializeField] private float lidClosingTime = 1f;
     [SerializeField] private float floorGrowthTime = 1f;
+
+    [SerializeField] private float _force = 100000f;
+    [SerializeField] private float _mass = 1;
+    
 
 
     private void Start()
@@ -34,35 +39,42 @@ public class WorldSpawner : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Q))
         {
-            CreateWorld();
+            StartCoroutine(CreateWorld());
         }    
     }
 
-    void CreateWorld()
+    IEnumerator CreateWorld()
     {
-        var worldBounds = floorParent.GetChild(0);
-        var seq = DOTween.Sequence();
+        var worldBounds = transform.GetChild(0);
+        worldBounds.parent = null;
+        var lid = worldBounds.GetChild(4).GetChild(0);
 
-        seq.Append(floorParent.DOScale(new Vector3(TargetFloorXScale, transform.localScale.y, TargetFloorZScale), floorGrowthTime));
+        var dif = lid.position - transform.position;
 
-        for (int i = 0; i < 4; i++)
-        {
-            var currentWall = worldBounds.GetChild(i);
+        var expPos = transform.position + dif.normalized * (dif.magnitude / 2);
 
-            seq.Append(GrowWallWidth(currentWall));
-        }
+        transform.GetComponent<MeshCollider>().enabled = false;
+        var crb = gameObject.AddComponent<Rigidbody>();
+        crb.AddExplosionForce(200000, expPos, 10000);
         
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 5; i++)
         {
-            var currentWall = worldBounds.GetChild(i);
-            seq.Append(GrowHeight(currentWall, TargetYWallsScale));
+            var mfs = worldBounds.GetChild(i).GetComponentsInChildren<MeshFilter>();
+            foreach (var mf in mfs)
+            {
+                var mc = mf.GetComponent<MeshCollider>();
+                if (mc)
+                {
+                    mc.enabled = false;
+                }
+                crb = mf.gameObject.AddComponent<Rigidbody>();
+                crb.AddExplosionForce(200000, expPos, 10000);
+            }
         }
 
-        var lid = worldBounds.GetChild(4);
-        seq.Append(GrowHeight(lid, TargetYLidScale));
-        seq.Append(lid.DORotate(new Vector3(TargetLidXRot, 0, 0), lidClosingTime));
-
-        seq.Play();
+        yield return new WaitForSeconds(4);
+        Destroy(worldBounds.gameObject);
+        Destroy(transform.gameObject);
     }
 
     private TweenerCore<Vector3, Vector3, VectorOptions> GrowWallWidth(Transform tr) =>

@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -14,7 +15,8 @@ public class CollisionTest : MonoBehaviour
     [SerializeField] private float growingTime = 0.5f;
     [SerializeField] private float suckingTime = 0.1f;
     [SerializeField] private Transform dupeParent;
-    
+
+    private bool _wasHit;
     private bool _isSuckingAll;
     private float _totalHeight; 
    
@@ -59,16 +61,38 @@ public class CollisionTest : MonoBehaviour
         if (tr.CompareTag(Constants.UnsuckTag) || tr.CompareTag(Constants.FloorTag) || tr.CompareTag(Constants.ProcessedTag) || !tr.gameObject.activeInHierarchy)
             return;
 
+        if (tr.CompareTag(Constants.RoofTag))
+        {
+            SuckAll();
+            return;
+        }
+        
         tr.tag = Constants.ProcessedTag;
+        
         ProcessCollision(tr);
     }
-    
+
+    private void OnCollisionEnter(Collision other)
+    {
+        if (other.transform.CompareTag("Blocker"))
+        {
+            _wasHit = true;
+            StartCoroutine(DisableCollider(other.transform));
+        }
+    }
+
+    IEnumerator DisableCollider(Transform tr)
+    {
+        yield return new WaitForSeconds(.5f);
+        tr.GetComponent<MeshCollider>().enabled = false;
+    }
+
     public void ProcessCollision(Transform tr)
     {
         if (_isSuckingAll)
-        {
             return;
-        }
+        
+        
         var prevParent = tr;
         var currentParent = tr.parent;
         while (currentParent.name != "Dupes")
