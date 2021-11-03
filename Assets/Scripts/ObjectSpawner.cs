@@ -21,13 +21,13 @@ public class ObjectSpawner : MonoBehaviour
     
     [Header("Animating World")]
     [SerializeField] private float commonTime;
-    [SerializeField] private float buildingGrowthTime = 1f;
     [SerializeField] private bool useCommonTime = true;
 
-    [SerializeField] private float wallWideningTime = 1f;
-    [SerializeField] private float wallTallingTime = 1f;
-    [SerializeField] private float lidClosingTime = 1f;
-    [SerializeField] private float floorGrowthTime = 1f;
+    public float wallWideningTime = 1f;
+    public float wallTallingTime = 1f;
+    public float lidClosingTime = 1f;
+    public float floorGrowthTime = 1f;
+    public float buildingGrowthTime = 1f;
     
     [Header("GameObjects")]
     [SerializeField] private Transform furnishingsRoot;
@@ -46,16 +46,18 @@ public class ObjectSpawner : MonoBehaviour
     [SerializeField] private int objectsCount = 10;
     [SerializeField] private float spawnHeight = 100;
     [SerializeField] private float closerAmount;
-    [SerializeField] private float tToEnd = 6;
+    public float tToEnd = 6;
 
     private readonly List<Transform> _duplicateObjects = new List<Transform>();
     private readonly List<Transform> _duplicateBuildings = new List<Transform>();
 
+    [HideInInspector]
+    public Transform Eye;
+    
     private Transform _tLWorldCorner; //zwall1, zwall2
     private Transform _bRWorldCorner;
     
     private Transform _floor;
-    private Transform _eye;
     private Transform _cam;
     private Transform _player;
     private Vector2 _tlCorner;
@@ -63,6 +65,7 @@ public class ObjectSpawner : MonoBehaviour
     private MapScanner _mapScanner;
     private Vector3 _spacingVector;
     private Transform[] _allBuildings;
+    private bool _isFirstTime = true;
 
     private void Start()
     {
@@ -78,7 +81,7 @@ public class ObjectSpawner : MonoBehaviour
     private void CreateWorld()
     {
         _player = Instantiate(playerOriginal);
-        _eye = _player.GetChild(1);
+        Eye = _player.GetChild(1);
         _cam = _player.GetChild(0);
         
         _floor = Instantiate(floorOrig);
@@ -88,36 +91,76 @@ public class ObjectSpawner : MonoBehaviour
 
         _tLWorldCorner = worldBounds.GetChild(0);
         _bRWorldCorner = worldBounds.GetChild(2);
-        
-        var seq = DOTween.Sequence();
 
-        seq.Append(_floor.DOScale(new Vector3(TargetFloorXScale, _floor.localScale.y, TargetFloorZScale), floorGrowthTime));
-
-        for (int i = 0; i < 4; i++)
+        if (_isFirstTime)
         {
-            var currentWall = worldBounds.GetChild(i);
+            _isFirstTime = false;
+            
+            var seq = DOTween.Sequence();
 
-            seq.Append(GrowWallWidth(currentWall));
+            seq.Append(_floor.DOScale(new Vector3(TargetFloorXScale, _floor.localScale.y, TargetFloorZScale), floorGrowthTime));
+
+            for (int i = 0; i < 4; i++)
+            {
+                var currentWall = worldBounds.GetChild(i);
+
+                seq.Append(GrowWallWidth(currentWall));
+            }
+
+            seq.OnComplete(() =>
+            {
+                SetWorldCorners();
+            
+                for (int i = 0; i < buildingsCount; i++)
+                {
+                    SpawnBuilding(Vector3.zero);
+                }
+        
+                foreach (var b in _duplicateBuildings)
+                {
+                    b.DOScale(new Vector3(0.01f, 0.01f, 0.01f), buildingGrowthTime);
+                }
+        
+                StartCoroutine(SpawnObjectsSeries(worldBounds));
+            });
+        }
+        else
+        {
+            for (int i = 0; i < buildingsCount; i++)
+                SpawnBuilding(new Vector3(0.01f, 0.01f, 0.01f));
+            for (int i = 0; i < objectsCount; i++)
+                SpawnMisc(spawnHeight);
+        
+            StartCoroutine(SetCollidersToTriggerLater(0, 3));
+            StartCoroutine(SetCollidersToBuildingsImmediately());
+
+        }
+    }
+
+    private IEnumerator SetCollidersToBuildingsImmediately()
+    {
+        foreach (var b in _duplicateBuildings)
+        {
+            var colliders = b.GetComponentsInChildren<MeshCollider>();
+            foreach (var col in colliders)
+            {
+                col.isTrigger = true;
+            }
         }
 
-        seq.OnComplete(() =>
+        for (int i = 0; i < objectsCount; i++)
         {
-            SetWorldCorners();
-            
-            for (int i = 0; i < buildingsCount; i++)
-            {
-                SpawnBuilding(Vector3.zero);
-            }
+            SpawnMisc(spawnHeight);
+        }
         
-            foreach (var b in _duplicateBuildings)
-            {
-                b.DOScale(new Vector3(0.01f, 0.01f, 0.01f), buildingGrowthTime);
-            }
-        
-            StartCoroutine(SpawnObjectsSeries(worldBounds));
-        });
+        yield return StartCoroutine(SetCollidersToTriggerLater(objectsCount, 3.3f));
 
-        seq.Play();
+        for (int i = 0; i < objectsCount; i++)
+        {
+            SpawnMisc(spawnHeight);
+        }
+        
+        yield return StartCoroutine(SetCollidersToTriggerLater(objectsCount * 2, 2.5f));
     }
     
     public IEnumerator Explode()
@@ -161,14 +204,14 @@ public class ObjectSpawner : MonoBehaviour
 
     private void EnableControls()
     {
-        _eye.GetComponent<Rigidbody>().isKinematic = false;
-        _eye.GetComponent<Mover>().enabled = true;
+        Eye.GetComponent<Rigidbody>().isKinematic = false;
+        Eye.GetComponent<Mover>().enabled = true;
     }
     
     private IEnumerator EndingSequence()
     {
-        _eye.GetComponent<Rigidbody>().isKinematic = true;
-        _eye.GetComponent<Mover>().enabled = false;
+        Eye.GetComponent<Rigidbody>().isKinematic = true;
+        Eye.GetComponent<Mover>().enabled = false;
         yield return null;
     }
 
@@ -187,14 +230,13 @@ public class ObjectSpawner : MonoBehaviour
         for (int i = 0; i < 4; i++)
         {
             var currentWall = worldBounds.GetChild(i);
-            finalSeq.Append(GrowHeight(currentWall, TargetYWallsScale));
+            finalSeq.Join(GrowHeight(currentWall, TargetYWallsScale));
         }
         
         var lid = worldBounds.GetChild(4);
         finalSeq.Append(GrowHeight(lid, TargetYLidScale));
         finalSeq.Append(lid.DORotate(new Vector3(TargetLidXRot, 0, 0), lidClosingTime));
-        
-        finalSeq.Play().OnComplete(SpawnEye);
+        finalSeq.Play();
     }
 
     private void SetWorldCorners()

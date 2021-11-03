@@ -92,7 +92,7 @@ public class CollisionTest : MonoBehaviour
         if (_isSuckingAll)
             return;
         
-        
+        Debug.Log(tr.name);
         var prevParent = tr;
         var currentParent = tr.parent;
         while (currentParent.name != "Dupes")
