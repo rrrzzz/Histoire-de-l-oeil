@@ -15,7 +15,7 @@ public class CamMover : MonoBehaviour
     private const float OrigHw = 1.1f;
     
     private Vector3 _offset;
-    private CollisionTest _colTest;
+    private EyeCollisionsController _colTest;
     private bool _isCoroutineExecuting;
     private float _currentMag;
     private float _lastTargetReached;
@@ -25,7 +25,7 @@ public class CamMover : MonoBehaviour
     private void Start()
     {
         _offset = transform.position - target.position;
-        _colTest = target.GetComponent<CollisionTest>();
+        _colTest = target.GetComponent<EyeCollisionsController>();
         _lastTargetReached = target.localScale.x;
         
         var inX = Input.GetAxis("Mouse X");

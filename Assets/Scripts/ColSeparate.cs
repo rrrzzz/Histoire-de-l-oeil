@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class ColSeparate : MonoBehaviour
 {
-    [SerializeField] private CollisionTest _colTest;
+    [SerializeField] private EyeCollisionsController _colTest;
     [SerializeField] private Transform _eye;
 
     private void Update()
@@ -15,6 +15,11 @@ public class ColSeparate : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         var tr = other.transform;
+        if (tr.CompareTag(Constants.RoofTag))
+        {
+            _colTest.SuckAll();
+            return;
+        }
         if (tr.CompareTag(Constants.UnsuckTag) || tr.CompareTag(Constants.FloorTag) || tr.CompareTag(Constants.ProcessedTag) || !tr.gameObject.activeInHierarchy || tr.CompareTag("Blocker"))
             return;
 

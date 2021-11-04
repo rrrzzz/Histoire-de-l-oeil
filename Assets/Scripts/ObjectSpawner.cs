@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,11 +6,14 @@ using DG.Tweening;
 using DG.Tweening.Core;
 using DG.Tweening.Plugins.Options;
 using UnityEngine;
-
+using Object = System.Object;
 using Random = UnityEngine.Random;
 
 public class ObjectSpawner : MonoBehaviour
 {
+    public static EventHandler<Transform> WorldCreatedEvent;
+    public static EventHandler<Transform> FirstCreationEvent;
+    public static EventHandler<Transform> EndingStartedEvent;
     private const float TargetYWallsScale = 12.2f;
     private const float TargetYLidScale = 13.6965f;
     private const float TargetLidXRot = -90;
@@ -35,9 +39,12 @@ public class ObjectSpawner : MonoBehaviour
     [SerializeField] private Transform animalsRoot;
     [SerializeField] private Transform dupesRoot;
     [SerializeField] private Transform playerOriginal;
+    [SerializeField] private Transform deathOriginal;
     
     [Header("Debug")]
     [SerializeField] private bool debugSpawn;
+    [SerializeField] private Transform debugFloor;
+    [SerializeField] private Transform debugEye;
 
     [Header("Spawn parameters")]
     [SerializeField] private float buildingsSpacing = 1;
@@ -51,15 +58,13 @@ public class ObjectSpawner : MonoBehaviour
     private readonly List<Transform> _duplicateObjects = new List<Transform>();
     private readonly List<Transform> _duplicateBuildings = new List<Transform>();
 
-    [HideInInspector]
-    public Transform Eye;
-    
-    private Transform _tLWorldCorner; //zwall1, zwall2
+    private Transform _tLWorldCorner;
     private Transform _bRWorldCorner;
     
     private Transform _floor;
-    private Transform _cam;
     private Transform _player;
+    private Transform _death;
+    private Transform _eye;
     private Vector2 _tlCorner;
     private Vector2 _brCorner;
     private MapScanner _mapScanner;
@@ -69,6 +74,8 @@ public class ObjectSpawner : MonoBehaviour
 
     private void Start()
     {
+        CinematicController.GameStartEvent += CreateWorld;
+        
         if (useCommonTime)
             wallWideningTime = wallTallingTime = lidClosingTime = floorGrowthTime = commonTime;
         
@@ -76,13 +83,22 @@ public class ObjectSpawner : MonoBehaviour
 
         _spacingVector = new Vector3(buildingsSpacing, buildingsSpacing, buildingsSpacing);
         _allBuildings = buildingsRoot.GetComponentsInChildren<MeshCollider>(true).Select(x => x.transform).ToArray();
+
+        EyeCollisionsController.ExplodeEvent += OnExplodeHandler;
     }
 
-    private void CreateWorld()
+    private void CreateWorld(object o, EventArgs e)
     {
+        if (!_isFirstTime)
+        {
+            Destroy(_player.gameObject);
+        }
+
+        _death = Instantiate(deathOriginal);
+        _death.gameObject.SetActive(true);
         _player = Instantiate(playerOriginal);
-        Eye = _player.GetChild(1);
-        _cam = _player.GetChild(0);
+        _player.gameObject.SetActive(true);
+        _eye = _player.GetChild(1);
         
         _floor = Instantiate(floorOrig);
         _floor.gameObject.SetActive(true);
@@ -97,6 +113,7 @@ public class ObjectSpawner : MonoBehaviour
             _isFirstTime = false;
             
             var seq = DOTween.Sequence();
+            FirstCreationEvent?.Invoke(this, _eye);
 
             seq.Append(_floor.DOScale(new Vector3(TargetFloorXScale, _floor.localScale.y, TargetFloorZScale), floorGrowthTime));
 
@@ -126,14 +143,31 @@ public class ObjectSpawner : MonoBehaviour
         }
         else
         {
+            _floor.DOScale(new Vector3(TargetFloorXScale, _floor.localScale.y, TargetFloorZScale), 0);
+            
+            _floor.GetComponentsInChildren<MeshCollider>().First(x => x.CompareTag(Constants.BlockerTag)).enabled = false;
+            
+            for (int i = 0; i < 4; i++)
+            {
+                var currentWall = worldBounds.GetChild(i);
+
+                currentWall.DOScale(Vector3.one, 0.1f);
+                currentWall.DOScaleY(TargetYWallsScale, 0.1f);
+            }
+            
+            var lid = worldBounds.GetChild(4);
+            lid.DOScaleY(TargetYLidScale, 0.1f);
+            lid.DORotate(new Vector3(TargetLidXRot, 0, 0), 0.1f);
+            
             for (int i = 0; i < buildingsCount; i++)
                 SpawnBuilding(new Vector3(0.01f, 0.01f, 0.01f));
             for (int i = 0; i < objectsCount; i++)
                 SpawnMisc(spawnHeight);
+            
+            WorldCreatedEvent?.Invoke(this, _eye);
         
             StartCoroutine(SetCollidersToTriggerLater(0, 3));
             StartCoroutine(SetCollidersToBuildingsImmediately());
-
         }
     }
 
@@ -162,9 +196,16 @@ public class ObjectSpawner : MonoBehaviour
         
         yield return StartCoroutine(SetCollidersToTriggerLater(objectsCount * 2, 2.5f));
     }
+
+    private void OnExplodeHandler(Object o, EventArgs e) => StartCoroutine(Explode());
     
-    public IEnumerator Explode()
+    private IEnumerator Explode()
     {
+        if (debugSpawn)
+        {
+            _floor = debugFloor;
+            _eye = debugEye;
+        }
         var worldBounds = _floor.GetChild(0);
         worldBounds.parent = null;
         var lid = worldBounds.GetChild(4).GetChild(0);
@@ -174,8 +215,7 @@ public class ObjectSpawner : MonoBehaviour
         var expPos = _floor.position + dif.normalized * (dif.magnitude / 2);
         
         _floor.GetComponent<MeshCollider>().enabled = false;
-        var crb = _floor.gameObject.AddComponent<Rigidbody>();
-        crb.AddExplosionForce(200000, expPos, 10000);
+        Rigidbody crb;
         
         for (int i = 0; i < 5; i++)
         {
@@ -187,32 +227,27 @@ public class ObjectSpawner : MonoBehaviour
                     mc.enabled = false;
                 
                 crb = mf.gameObject.AddComponent<Rigidbody>();
-                crb.AddExplosionForce(200000, expPos, 10000);
+                crb.AddExplosionForce(100000, expPos, 10000);
             }
         }
         
-        StartCoroutine(EndingSequence());
-        yield return new WaitForSeconds(4);
-        Destroy(worldBounds.gameObject);
-        Destroy(_floor.gameObject);
-    }
+        yield return new WaitForSeconds(2);
+        worldBounds.DOScale(Vector3.zero, 1f);
 
-    private void SpawnEye()
-    {
+        _eye.GetComponent<Rigidbody>().isKinematic = true;
+        _eye.GetComponent<Mover>().enabled = false;
         
-    }
+        crb = _floor.gameObject.AddComponent<Rigidbody>();
+        crb.AddExplosionForce(100000, expPos, 10000);
+        
+        yield return new WaitForSeconds(2);
 
-    private void EnableControls()
-    {
-        Eye.GetComponent<Rigidbody>().isKinematic = false;
-        Eye.GetComponent<Mover>().enabled = true;
-    }
-    
-    private IEnumerator EndingSequence()
-    {
-        Eye.GetComponent<Rigidbody>().isKinematic = true;
-        Eye.GetComponent<Mover>().enabled = false;
-        yield return null;
+        var seq = DOTween.Sequence();
+
+        seq.Append(_floor.DOScale(Vector3.zero, 1f)).AppendCallback(() => Destroy(_floor.gameObject));
+        
+        DestroySpawned();
+        EndingStartedEvent?.Invoke(this, _eye);
     }
 
     private IEnumerator SpawnObjectsSeries(Transform worldBounds)
@@ -226,11 +261,15 @@ public class ObjectSpawner : MonoBehaviour
         yield return StartCoroutine(SetCollidersToTriggerAfterSpawned());
         
         var finalSeq = DOTween.Sequence();
-                
+        finalSeq.AppendInterval(1.5f);
+        
         for (int i = 0; i < 4; i++)
         {
             var currentWall = worldBounds.GetChild(i);
-            finalSeq.Join(GrowHeight(currentWall, TargetYWallsScale));
+            if (i == 0)
+                finalSeq.Append(GrowHeight(currentWall, TargetYWallsScale));
+            else
+                finalSeq.Join(GrowHeight(currentWall, TargetYWallsScale));
         }
         
         var lid = worldBounds.GetChild(4);
@@ -245,61 +284,6 @@ public class ObjectSpawner : MonoBehaviour
         _brCorner = new Vector2(_bRWorldCorner.position.x, _bRWorldCorner.position.z);
     }
 
-    private void Update()
-    {
-        // if (Input.GetKeyDown(KeyCode.Space))
-        //     CreateWorld();
-        
-        
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            
-            floorOrig.gameObject.SetActive(true);
-
-            var worldBounds = floorOrig.GetChild(0);
-
-            _tLWorldCorner = worldBounds.GetChild(0);
-            _bRWorldCorner = worldBounds.GetChild(2);
-            
-            SetWorldCorners();
-            for (int i = 0; i < buildingsCount; i++)
-            {
-                SpawnBuilding(new Vector3(.01f, .01f, .01f));
-            }
-            
-            for (int i = 0; i < objectsCount; i++)
-            {
-                SpawnMisc(5);
-            }
-
-            TriggerImmediately();
-        }
-        //
-        // if (Input.GetKeyDown(KeyCode.J))
-        // {
-        //     for (int i = 0; i < objectsCount; i++)
-        //     {
-        //         SpawnMisc(spawnHeight);
-        //     }
-        //
-        //     if (!debugSpawn)
-        //     {
-        //         StartCoroutine(SetCollidersToTriggerLater(0, tToEnd + 2));
-        //         StartCoroutine(SetCollidersToTriggerAfterSpawned());
-        //     }
-        // }
-        //
-        // if (Input.GetKeyDown(KeyCode.T))
-        // {
-        //     StartCoroutine(SetCollidersToTriggerLater(0, 3f));
-        // }
-        //
-        // if (Input.GetKeyDown(KeyCode.L))
-        // {
-        //     DestroySpawned();
-        // }
-    }
-    
     private TweenerCore<Vector3, Vector3, VectorOptions> GrowWallWidth(Transform tr) =>
         tr.DOScale(Vector3.one, wallWideningTime);
     
@@ -389,7 +373,10 @@ public class ObjectSpawner : MonoBehaviour
             {
                 continue;
             }
-            if (rb.position.y < -10)
+            
+            var pos = rb.position;
+
+            if (pos.y < -10 || pos.x > _tlCorner.x && pos.z > _tlCorner.y || pos.x < _tlCorner.x && pos.z < _brCorner.y)
             {
                 var parent = rb.transform.parent;
                 if (parent.name != "Dupes")
